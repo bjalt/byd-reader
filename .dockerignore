@@ -1,0 +1,19 @@
+# Exclude the following files and directories from the Docker container
+
+# Node modules
+node_modules
+
+# Symfony specific files and directories
+.env.local
+.env.local.php
+.env.*.local
+/config/secrets/prod/prod.decrypt.private.php
+/public/bundles/
+/var/
+/vendor/
+
+# Other common exclusions
+.git
+.gitignore
+Dockerfile
+docker-compose.yml
