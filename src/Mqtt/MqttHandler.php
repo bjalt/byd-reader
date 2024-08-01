@@ -37,6 +37,7 @@ class MqttHandler implements LoggerAwareInterface
             'state_topic' => 'home/energy/byd-battery/power/state',
             'unit_of_measurement' => 'W',
             'device_class' => 'power',
+            'state_class' => 'measurement',
             'device' => [
                 'identifiers' => 'byd-battery',
                 'name' => 'BYD Battery',
@@ -52,6 +53,7 @@ class MqttHandler implements LoggerAwareInterface
             'state_topic' => 'home/energy/byd-battery/current/state',
             'unit_of_measurement' => 'A',
             'device_class' => 'current',
+            'state_class' => 'measurement',
             'device' => [
                 'identifiers' => 'byd-battery',
             ]
@@ -64,6 +66,7 @@ class MqttHandler implements LoggerAwareInterface
             'state_topic' => 'home/energy/byd-battery/voltage/state',
             'unit_of_measurement' => 'V',
             'device_class' => 'voltage',
+            'state_class' => 'measurement',
             'device' => [
                 'identifiers' => 'byd-battery',
             ]
