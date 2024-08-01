@@ -31,4 +31,5 @@ services:
 
     App\Command\ReadCommand:
         $dataExport: '%env(bool:CSV_EXPORT)%'
+        $interval: '%env(int:INTERVAL)%'
 

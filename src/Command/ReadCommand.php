@@ -25,6 +25,7 @@ class ReadCommand extends Command implements LoggerAwareInterface
         private DataProvider $dataProvider,
         private MqttHandler $mqttHandler,
         private bool $dataExport,
+        private int $interval,
     )
     {
         parent::__construct();
@@ -48,9 +49,15 @@ class ReadCommand extends Command implements LoggerAwareInterface
         $io->info('Writing autodiscovery');
         $this->mqttHandler->writeAutodiscovery();
 
+        if (!is_int($this->interval) || $this->interval < 1) {
+            $io->error('Interval must be an integer greater than 0');
+
+            return Command::FAILURE;
+        }
+
         while (true) {
             $this->readAndWriteToFile($io);
-            sleep(10);
+            sleep($this->interval);
         }
 
         return Command::SUCCESS;

@@ -15,4 +15,6 @@ MQTT_USERNAME=
 MQTT_PASSWORD=
 # Enable (1) / Disable (0) exporting data to csv file ./data.csv
 CSV_EXPORT=
+# Time in seconds to wait between reading the data from the HVS
+INTERVAL=5
 ```
