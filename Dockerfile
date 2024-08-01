@@ -1,6 +1,8 @@
 # Use the official PHP image
 FROM php:8.2-cli
 
+LABEL org.opencontainers.image.source="https://github.com/bjalt/byd-reader"
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
@@ -16,6 +18,12 @@ ENV COMPOSER_ALLOW_SUPERUSER=1
 
 # Set working directory
 WORKDIR /app
+
+# Degine build arguments
+ARG APP_ENV
+
+# Set environment variables from build arguments
+ENV APP_ENV=${APP_ENV}
 
 # Copy project files
 COPY . .
