@@ -116,11 +116,11 @@ class DataProvider implements LoggerAwareInterface
         ->int16(0x0510, 'Output Voltage', function ($value, $address, $response) {
             return $value / 100; // optional: transform value after extraction
         }) // or whatever data type that value is in that register
-        ->int16(0x0511, 'Charge Cycles', function ($value, $address, $response) {
-            return $value; // optional: transform value after extraction
+        ->uint16(0x0511, 'Charge Cycles', function ($value, $address, $response) {
+            return $value / 10; // optional: transform value after extraction
         })
         ->uint16(0x0513, 'Discharge Cycles', function ($value, $address, $response) {
-            return $value;
+            return $value / 10;
         })
 
         //->uint16(2, 'address2_value')
