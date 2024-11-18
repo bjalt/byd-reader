@@ -81,7 +81,7 @@ class ReadCommand extends Command implements LoggerAwareInterface
             return;
         }
 
-        $this->mqttHandler->updateState($data['power'], $data['Current'], $data['Battery Voltage']);
+        $this->mqttHandler->updateState($data['power'], $data['Current'], $data['Battery Voltage'], $data['State of Charge']);
 
         if ($this->dataExport) {
             // open file with name 'data.csv' in append mode

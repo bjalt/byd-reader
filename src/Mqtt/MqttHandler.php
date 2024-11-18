@@ -72,24 +72,39 @@ class MqttHandler implements LoggerAwareInterface
             ]
         ], JSON_THROW_ON_ERROR);
 
+        $stateOfChargeTopic = 'homeassistant/sensor/byd-battery/state-of-charge/config';
+        $stateOfChargeMessage = json_encode([
+            'name' => 'BYD Battery State of Charge',
+            'unique_id' => 'byd-battery-state-of-charge',
+            'state_topic' => 'home/energy/byd-battery/state-of-charge/state',
+            'unit_of_measurement' => '%',
+            'device_class' => 'battery',
+            'state_class' => 'measurement',
+            'device' => [
+                'identifiers' => 'byd-battery',
+            ]
+        ], JSON_THROW_ON_ERROR);
+
         $this->connect();
         try {
             $this->mqtt->publish($powerTopic, $powerMessage, 0, true);
             $this->mqtt->publish($currentTopic, $currentMessage, 0, true);
             $this->mqtt->publish($voltageTopic, $voltageMessage, 0, true);
+            $this->mqtt->publish($stateOfChargeTopic, $stateOfChargeMessage, 0, true);
         } catch (\Throwable $exception) {
             $this->logger->error('Failed to write autodiscovery', ['exception' => $exception]);
         }
         $this->disconnect();
     }
 
-    public function updateState(float $power, float $current, float $voltage): void
+    public function updateState(float $power, float $current, float $voltage, float $stateOfCharge): void
     {
         $this->connect();
         try {
             $this->mqtt->publish('home/energy/byd-battery/power/state', (string) $power);
             $this->mqtt->publish('home/energy/byd-battery/current/state', (string) $current);
             $this->mqtt->publish('home/energy/byd-battery/voltage/state', (string) $voltage);
+            $this->mqtt->publish('home/energy/byd-battery/state-of-charge/state', (string) $stateOfCharge);
         } catch (\Throwable $exception) {
             $this->logger->error('Failed to update state', ['exception' => $exception]);
         }
