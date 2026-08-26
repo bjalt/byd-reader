@@ -15,7 +15,7 @@ use Symfony\Component\Console\Style\SymfonyStyle;
 
 #[AsCommand(
     name: 'app:read',
-    description: 'Add a short description for your command',
+    description: 'Continuously read the BYD HVS via Modbus and publish it to MQTT',
 )]
 class ReadCommand extends Command implements LoggerAwareInterface
 {
