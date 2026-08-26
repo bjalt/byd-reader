@@ -8,3 +8,6 @@
 /var/
 /vendor/
 ###< symfony/framework-bundle ###
+
+# Contains real broker credentials — deployment-local only
+/docker-compose.yml
