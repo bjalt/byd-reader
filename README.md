@@ -1,20 +1,129 @@
-# Byd HVS Reader
+# BYD Reader
 
-This will read a Byd HVS via Modbus RTU and publish the data to a MQTT broker. Additionally, it will publish an
-autoconfiguration message for Home Assistant to display the sensor data. This requires a Home Assistant instance with
-MQTT integration enabled.
+A long-running Symfony console daemon that polls a BYD HVS home battery over Modbus RTU (tunnelled over a
+raw TCP socket) and republishes selected values to an MQTT broker using Home Assistant's discovery convention.
 
-This project is based on the prior work of [BYD-Battery-Box-Infos](https://github.com/sarnau/BYD-Battery-Box-Infos)
+## Commands
+
+```bash
+composer install
+php bin/console app:read          # the only command; loops forever until interrupted
+php bin/console app:read -vv      # ...and actually shows the Modbus hex dumps (see Logging)
+./build.sh <version>              # docker build (APP_ENV=prod), tag :v<version> + :latest, push to ghcr.io
+docker compose up -d              # runs the published :latest image
+```
+
+## Running Tests
+
+```bash
+composer test
+```
+
+There is **no** test suite, linter, or static analysis. `composer.json` maps `App\Tests\` to `tests/`, but that
+directory did not exist and PHPUnit is not installed — do not assume `composer test` or `vendor/bin/phpunit`
+work. (`.idea/phpunit.xml` and the PHP_CodeSniffer ruleset path in `.idea/php.xml` are committed IDE settings
+pointing at things that do not exist in this checkout; ignore them.) Verify changes by running the command
+against a reachable gateway and broker.
+
+## Architecture
+
+Three classes, one linear flow, wired only by direct constructor dependencies:
+
+`ReadCommand` (`app:read`) → `DataProvider::getData()` → `MqttHandler`
+
+Namespaces are organized by **integration boundary, not by layer**: `App\Byd` (device in), `App\Mqtt`
+(transport out), `App\Command` (entry point). There is no `Service/`, `Model/`, `Entity/` or DTO — the domain
+model *is* a `array<string, float|bool>` keyed by human-readable metric names.
+
+### `src/Command/ReadCommand.php`
+
+Publishes Home Assistant autodiscovery once at startup, then `while (true)`: read → render a `horizontalTable`
+to stdout → publish → optionally append to CSV → `sleep(INTERVAL)`. `CSV_EXPORT` and `INTERVAL` arrive as
+constructor-injected scalars (bound in `services.yaml`), not via `$_ENV`.
+
+There is no signal handling or graceful shutdown; liveness is delegated to Docker's `restart: unless-stopped`.
+`readAndWriteToFile()` is misnamed — it also does the MQTT publish. The CSV path is relative (`data.csv` in the
+CWD, `/app` in the container), has no header row, and splats the whole payload so it includes the `error` and
+`power` columns.
+
+### `src/Byd/DataProvider.php` — the device boundary
+
+Builds Modbus **TCP** request packets with `aldas/modbus-tcp-client`, converts each to an **RTU** frame
+(`RtuConverter::toRtu`, which strips the MBAP header and appends CRC16), writes it to a raw socket via
+`BinaryStreamConnection`, converts the reply back (`RtuConverter::fromRtu`), and lets the request object parse
+it. This RTU-over-TCP round trip is the non-obvious part — the library's normal Modbus/TCP path is deliberately
+bypassed, and frame completeness is decided by `Packet::isCompleteLengthRTU()`.
+
+- The register map lives entirely in `configureRequest()`: `ReadRegistersBuilder` entries mapping holding
+  registers `0x0500`–`0x0513` (unit ID 1) to human-readable keys, each with a closure applying the scaling
+  factor (`/10`, `/100`, or identity). **Add new readings here.**
+- The `'no_address'` URI passed to `newReadHoldingRegisters()` is a placeholder. The builder needs a URI key to
+  group addresses, but the socket is dialled separately by `buildConnection()`, so it is never used to connect.
+- `power` is derived (`Current * Battery Voltage`), not read from a register. The sign of `Current` gives
+  charge/discharge direction.
+- Any `Exception` is swallowed and the payload replaced with a hardcoded all-zero array plus `error => true`;
+  `ReadCommand` then skips publishing, so Home Assistant keeps the last good value instead of seeing zeros.
+  This is intentional — it keeps the daemon alive across transient gateway/network failures.
+
+**Do not add `declare(strict_types=1)` to this file.** `ReadRegisterRequest::parse()` is typed
+`parse(string $binaryData)`, but `getData()` hands it a `ModbusResponse` *object*. That only works because this
+file runs in coercive mode and modbus packets implement `__toString()`. Adding strict types breaks the read
+path at runtime. (`MqttHandler.php` does declare it — the inconsistency is load-bearing, not an oversight.)
+
+Two latent traps if you extend the register map: `getData()` **assigns** rather than merges inside the
+per-request loop, so if the address span ever exceeds 124 registers the splitter emits multiple requests and
+only the last chunk survives. And `parse()` can return an `ErrorResponse`, on which the next line raises a PHP
+`Error` — which `catch (Exception)` does *not* catch, killing the daemon.
+
+### `src/Mqtt/MqttHandler.php` — the Home Assistant boundary
+
+Only 4 of the 12 values read are published: power, current, voltage, state of charge. Cell voltages, SoH,
+temperatures and cycle counts are read and printed but never leave the process. Both topic families are
+hardcoded:
+
+- `homeassistant/sensor/byd-battery/<sensor>/config` — **retained** discovery JSON, published once at startup.
+  Only the power payload carries full device metadata; the other three repeat `identifiers: byd-battery` so
+  Home Assistant groups them onto one device.
+- `home/energy/byd-battery/<sensor>/state` — plain stringified values, QoS 0, not retained, every interval.
+
+Adding a sensor to Home Assistant takes three coordinated edits: a config payload in `writeAutodiscovery()`, a
+publish in `updateState()`, and a new parameter on the `updateState()` signature plus its caller in
+`ReadCommand::readAndWriteToFile()`.
+
+Every publish batch connects and disconnects — no persistent session or keep-alive loop. Fixed client id
+`byd-reader`, MQTT 3.1, no TLS. An empty host logs a warning and skips connecting; the resulting publish
+exception is swallowed, so bad broker config degrades to log spam rather than a crash.
 
 ## Configuration
 
-```dotenv
-MQTT_HOST=
-MQTT_PORT=
-MQTT_USERNAME=
-MQTT_PASSWORD=
-# Enable (1) / Disable (0) exporting data to csv file ./data.csv
-CSV_EXPORT=
-# Time in seconds to wait between reading the data from the HVS
-INTERVAL=5
-```
+`config/services.yaml` uses autowire + autoconfigure for everything in `src/`; there are no manual service ids
+and no `parameters:`. Only scalars are declared, bound by argument name:
+
+| Var | Bound into |
+| --- | --- |
+| `MQTT_HOST`, `MQTT_PORT`, `MQTT_USERNAME`, `MQTT_PASSWORD` | `MqttHandler` |
+| `CSV_EXPORT` (bool), `INTERVAL` (int seconds) | `ReadCommand` |
+
+These are **not** in the committed `.env` (which holds only `APP_ENV`/`APP_SECRET`). Locally they come from the
+gitignored `.env.local`; in production from the `environment:` block of `docker-compose.yml`. Note that
+`docker-compose.yml` is untracked but *not* gitignored, and contains a real broker password — don't commit it.
+
+The Modbus side is **not** env-driven: host `192.168.16.254`, port `8080`, read timeout 0.5 s and unit ID 1 are
+hardcoded in `DataProvider::buildConnection()` and `configureRequest()`. Making them configurable means adding
+bindings in `services.yaml` the same way `MqttHandler`'s are done.
+
+## Logging
+
+Monolog is not installed. Symfony's fallback `Symfony\Component\HttpKernel\Log\Logger` is registered as the
+`logger` service and writes to stderr, with a **default minimum level of ERROR**. The `$logger->info()` Modbus
+request/response hex dumps in `DataProvider` therefore only appear with `-vv` (`SHELL_VERBOSITY=2`).
+
+All three classes get the logger through `LoggerAwareInterface` + `LoggerAwareTrait` and autoconfiguration
+rather than constructor injection — follow that pattern for new services. Nothing null-guards `$this->logger`,
+so these classes fatal on first log call if instantiated outside the container.
+
+## Deployment
+
+`Dockerfile` installs deps with `--no-dev --optimize-autoloader` and sets
+`ENTRYPOINT ["php", "bin/console", "app:read"]` — the container *is* the polling loop. Images publish to
+`ghcr.io/bjalt/byd-reader`. Commit messages use `feature:` / `fix:` / `chore:` prefixes.
