@@ -13,12 +13,18 @@ There is no HTTP surface, no database, no tests. `public/index.php`, `config/rou
 ## Commands
 
 ```bash
-composer install
-php bin/console app:read          # the only command; loops forever until interrupted
-php bin/console app:read -vv      # ...and actually shows the Modbus hex dumps (see Logging)
-./build.sh <version>              # docker build (APP_ENV=prod), tag :v<version> + :latest, push to ghcr.io
-docker compose up -d              # runs the published :latest image
+symfony composer install
+symfony php bin/console app:read     # the only command; loops forever until interrupted
+symfony php bin/console app:read -vv # ...and actually shows the Modbus hex dumps (see Logging)
+./build.sh <version>                 # docker build (APP_ENV=prod), tag :v<version> + :latest, push to ghcr.io
+docker compose up -d                 # runs the published :latest image
 ```
+
+Locally this machine has several PHP versions installed, so **always go through the Symfony CLI**: `symfony php`
+and `symfony composer` pick the interpreter named in `.php-version` (8.2), while a bare `php`/`composer` may hit
+an older one. That matters for dependency work — resolving on PHP 8.1 makes Composer report Symfony 7.1 as
+uninstallable and offer a 6.4 *downgrade* as the "latest" version. The Symfony CLI is a local-development
+convenience only; in production the code runs in the `php:8.2-cli` container, which calls `php` directly.
 
 There is **no** test suite, linter, or static analysis. `composer.json` maps `App\Tests\` to `tests/`, but that
 directory does not exist and PHPUnit is not installed — do not assume `composer test` or `vendor/bin/phpunit`
@@ -29,7 +35,8 @@ against a reachable gateway and broker.
 `docker-compose.yml` has no `build:` key — it pulls `:latest` from ghcr.io and will not pick up local edits.
 Run `./build.sh <version>` first, or just run the console command directly.
 
-PHP 8.2 (`.php-version`, `php:8.2-cli` image); `composer.json` declares `>=8.1`.
+PHP 8.2 (`.php-version`, `php:8.2-cli` image); `composer.json` declares `>=8.1`, but the pinned Symfony
+7.1 components require `>=8.2`, so 8.1 is not actually a usable runtime.
 
 ## Architecture
 
