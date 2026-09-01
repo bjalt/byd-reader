@@ -36,7 +36,9 @@ against a reachable gateway and broker.
 `docker-compose.yml` has no `build:` key — it pulls `:latest` from ghcr.io and will not pick up local edits.
 Run `./build.sh <version>` first, or just run the console command directly.
 
-PHP 8.4 (`.php-version`, `php:8.4-cli` image); `composer.json` declares `>=8.4` to match. Symfony is pinned to
+PHP 8.4 (`.php-version`, `php:8.4-cli` image); `composer.json` declares `>=8.4` to match. `.php-version` is
+**tracked on purpose** — it was force-added past a global gitignore rule that commonly covers it, because it is
+what `symfony php`/`symfony composer` read. Do not "clean it up". Symfony is pinned to
 `7.4.*` — the LTS, maintained until 11/2028 and security-supported until 11/2029. It only needs PHP >=8.2, so the
 runtime can move ahead independently. The next LTS is 8.4 (11/2028); the 8.x releases in between are six-month
 standard releases and would put this daemon back on an upgrade treadmill.
