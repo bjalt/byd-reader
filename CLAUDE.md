@@ -148,3 +148,13 @@ so these classes fatal on first log call if instantiated outside the container.
 `Dockerfile` installs deps with `--no-dev --optimize-autoloader` and sets
 `ENTRYPOINT ["php", "bin/console", "app:read"]` — the container *is* the polling loop. Images publish to
 `ghcr.io/bjalt/byd-reader`. Commit messages use `feature:` / `fix:` / `chore:` prefixes.
+
+Releases are automated: pushing a `v*` tag runs `.github/workflows/publish-image.yml`, which builds the image
+on a native `ubuntu-24.04-arm` runner, boots it once (`app:read --help`) to catch a broken container before
+anything is published, then pushes `v<version>` and moves `:latest`. A prerelease tag (`v1.2.3-rc1`) publishes
+the version tag but leaves `:latest` alone. **The image is `linux/arm64` only** — that is the deployment host,
+and it is what has always been published, since `build.sh` built on an Apple-silicon Mac with no `--platform`.
+Serving an x86 host means adding an `ubuntu-latest` job and merging a multi-arch manifest.
+
+`build.sh` still works as the manual escape hatch, but it is untracked — local-only, despite being documented
+above.

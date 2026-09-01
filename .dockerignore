@@ -17,3 +17,5 @@ node_modules
 .gitignore
 Dockerfile
 docker-compose.yml
+# CI workflows are not part of the runtime image
+.github
