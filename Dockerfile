@@ -1,5 +1,5 @@
 # Use the official PHP image
-FROM php:8.2-cli
+FROM php:8.4-cli
 
 LABEL org.opencontainers.image.source="https://github.com/bjalt/byd-reader"
 
