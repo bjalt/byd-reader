@@ -52,14 +52,18 @@ whatever `php` is first in `PATH` and fail Composer's `>=8.4` platform check.
 only that a constructor runs (`assertInstanceOf`) or that a method name exists (`method_exists`). Nothing mocks a
 socket, and nothing exercises `ReadCommand::execute()` — it would never return.
 
-The sixth is the one to understand before trusting it. `DataProviderTest::testGetDataReturnsArrayStructure` calls
-the real `getData()`, which **opens a real TCP connection to `192.168.16.254:8080`**. Away from the battery's
-network that takes about a second to fail, `getData()` swallows the exception, and the assertions pass against the
-hardcoded all-zero fallback — green, having proven only that the error path returns the expected array keys. On
-the battery's network the same test performs a live Modbus read. Both pass, testing entirely different things, and
-the suite runtime (~1 s, essentially all of it this one test) is the only outward sign of which happened.
+The sixth carries the weight. `DataProviderTest::testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable`
+constructs `DataProvider` against `127.0.0.1:1`, which refuses instantly, and asserts the whole swallowed-exception
+contract: `error` true, all twelve metrics zeroed, `power` zero, and no extra keys. That path is what keeps Home
+Assistant on its last good value instead of showing a zeroed battery, so it is worth pinning down.
 
-So verify real changes the way you always did: run the command against a reachable gateway and broker.
+This only works because the connection target is a constructor argument. Point it at the default and the test
+becomes a live Modbus read on the battery's network and an error-path test everywhere else — green either way,
+proving something different each time. If you ever add a test that calls `getData()` without overriding the host,
+that is the trap you have walked back into.
+
+None of this exercises a real read. Verify real changes the way you always did: run the command against a
+reachable gateway and broker.
 
 Two config details worth knowing. `phpunit.dist.xml` sets `failOnNotice` and `failOnWarning` with
 `restrictNotices`/`restrictWarnings` over `src/`, so a notice from application code fails the run rather than
@@ -149,9 +153,16 @@ These are **not** in the committed `.env` (which holds only `APP_ENV`/`APP_SECRE
 gitignored `.env.local`; in production from the `environment:` block of `docker-compose.yml`. Note that
 `docker-compose.yml` is untracked but *not* gitignored, and contains a real broker password — don't commit it.
 
-The Modbus side is **not** env-driven: host `192.168.16.254`, port `8080`, read timeout 0.5 s and unit ID 1 are
-hardcoded in `DataProvider::buildConnection()` and `configureRequest()`. Making them configurable means adding
-bindings in `services.yaml` the same way `MqttHandler`'s are done.
+The Modbus side is still **not** env-driven, but it is no longer hardcoded. `DataProvider::__construct()` takes
+`$modbusHost`, `$modbusPort` and `$modbusReadTimeoutSec`, defaulting to `192.168.16.254`, `8080` and 0.5 s — the
+deployed gateway — so autowiring resolves them with no binding at all and the daemon behaves exactly as before.
+Making them env-driven means adding bindings in `services.yaml` the same way `MqttHandler`'s are done.
+
+Those arguments are named `modbus*` rather than `$host`/`$port` on purpose. The MQTT bindings are scoped to
+`App\Mqtt\MqttHandler`, but if they were ever hoisted into a global `_defaults: bind:`, a `$host` argument here
+would silently be handed `MQTT_HOST`.
+
+Unit ID 1 is still hardcoded, in `configureRequest()`.
 
 ## Logging
 
