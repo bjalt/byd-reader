@@ -15,6 +15,18 @@ class DataProvider implements LoggerAwareInterface
 {
     use LoggerAwareTrait;
 
+    /**
+     * Defaults are the deployed gateway, so autowiring resolves without any binding in services.yaml.
+     * Pass explicit values to point at something else -- a test, or a second battery. Named modbus*
+     * rather than $host/$port so a future global bind: for the MQTT scalars cannot capture them.
+     */
+    public function __construct(
+        private string $modbusHost = '192.168.16.254',
+        private int $modbusPort = 8080,
+        private float $modbusReadTimeoutSec = 0.5,
+    ) {
+    }
+
     public function getData(): array
     {
         $readData = [
@@ -66,9 +78,9 @@ class DataProvider implements LoggerAwareInterface
     private function buildConnection(): BinaryStreamConnection
     {
         $connection = BinaryStreamConnection::getBuilder()
-            ->setPort(8080)
-            ->setHost('192.168.16.254')
-            ->setReadTimeoutSec(0.5)
+            ->setPort($this->modbusPort)
+            ->setHost($this->modbusHost)
+            ->setReadTimeoutSec($this->modbusReadTimeoutSec)
             ->setIsCompleteCallback(function ($binaryData, $streamIndex) {
                 return Packet::isCompleteLengthRTU($binaryData);
             })

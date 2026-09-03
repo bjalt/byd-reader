@@ -18,3 +18,18 @@ CSV_EXPORT=
 # Time in seconds to wait between reading the data from the HVS
 INTERVAL=5
 ```
+
+## Tests
+
+```bash
+composer install
+./run-tests.sh
+```
+
+`run-tests.sh` goes through the Symfony CLI (`symfony php`) when it is available, so PHPUnit runs on the PHP version
+named in `.php-version` rather than whatever `php` happens to be first in `PATH`.
+
+The suite covers construction of the three classes and the zeroed payload `DataProvider` falls back to when the
+battery cannot be reached. Nothing in it talks to a real gateway or broker, so a passing run is not evidence that a
+change works against real hardware — verify that by running `php bin/console app:read` against a reachable gateway
+and MQTT broker.
