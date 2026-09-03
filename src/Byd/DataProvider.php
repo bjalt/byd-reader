@@ -94,7 +94,10 @@ class DataProvider implements LoggerAwareInterface
             $connection->close();
         }
 
-        $readData['power'] = $readData['Current'] * $readData['Battery Voltage'];
+        // Derived from Output Voltage (0x0510), the pack terminal voltage, rather than Battery Voltage
+        // (0x0505), the internal cell-stack voltage -- matching both reference implementations. The two
+        // diverge under load, so this changes the published figure slightly.
+        $readData['power'] = $readData['Current'] * $readData['Output Voltage'];
         $readData['Errors'] = self::describeErrors((int) $readData['Error Bitmask']);
 
         return $readData;

@@ -26,7 +26,7 @@ now reaches Home Assistant in some form.
 | `0x0510` | `Output Voltage` | `output-voltage` |
 | `0x0511`+`0x0512` | `Total Charged Energy` | `total-charged-energy` |
 | `0x0513`+`0x0514` | `Total Discharged Energy` | `total-discharged-energy` |
-| *derived* | `power` = `Current × Battery Voltage` | `power` |
+| *derived* | `power` = `Current × Output Voltage` | `power` |
 | *derived* | `Errors` = `describeErrors(Error Bitmask)` | `errors` |
 
 14 Home Assistant sensors. The raw bitmask stays in the payload because it is compact and stable in the CSV
@@ -43,12 +43,11 @@ argument is needed — verified against a synthetic response, not just read off 
 **The BMU error bitmask is now read and published.** `0x050D` was the single highest-value register not being
 read: a battery fault used to be entirely invisible while the daemon reported a healthy-looking SoC.
 
-## Still open
-
-**`power` uses a different voltage than both reference implementations.** It is computed as
-`Current × Battery Voltage` (`0x0505`, internal cell-stack voltage). Both sarnau and `byd_battery_box` use
-`Current × Output Voltage` (`0x0510`, pack terminal voltage). Under load these diverge. Deliberately left alone —
-it changes the meaning of an existing published sensor, so it wants a decision rather than a drive-by fix.
+**`power` now uses output voltage.** It was computed as `Current × Battery Voltage` (`0x0505`, the internal
+cell-stack voltage); it is now `Current × Output Voltage` (`0x0510`, the pack terminal voltage), matching sarnau and
+`byd_battery_box`. The two diverge under load, so historical values in Home Assistant sit on a slightly different
+basis than everything recorded from this change onward. On the reference unit at 0.7 A the difference was
+220.22 W vs 219.87 W.
 
 ## Candidate additions
 
@@ -108,6 +107,5 @@ there would be new information for every project listed in the references, not j
 
 ## Suggested order from here
 
-1. Decide the `power` voltage question — it is a one-line change gated on a judgement call, not on effort.
-2. Harden the error path (`ErrorResponse` → PHP `Error`), then add the static hardware block.
-3. Per-cell detail and event history only if cell-level visibility or event forensics are actually wanted.
+1. Harden the error path (`ErrorResponse` → PHP `Error`), then add the static hardware block.
+2. Per-cell detail and event history only if cell-level visibility or event forensics are actually wanted.

@@ -119,8 +119,10 @@ bypassed, and frame completeness is decided by `Packet::isCompleteLengthRTU()`.
   that Home Assistant shows. It is `public static` so it can be tested without a socket.
 - The `'no_address'` URI passed to `newReadHoldingRegisters()` is a placeholder. The builder needs a URI key to
   group addresses, but the socket is dialled separately by `buildConnection()`, so it is never used to connect.
-- `power` is derived (`Current * Battery Voltage`), not read from a register. The sign of `Current` gives
-  charge/discharge direction.
+- `power` is derived (`Current * Output Voltage`), not read from a register. The sign of `Current` gives
+  charge/discharge direction. **Output voltage (`0x0510`), not battery voltage (`0x0505`)** — the pack terminal
+  rather than the internal cell stack, which is what both reference implementations use. The `voltage` sensor
+  still publishes battery voltage; only `power` changed.
 - Any `Exception` is swallowed and the payload replaced with a hardcoded all-zero array plus `error => true`;
   `ReadCommand` then skips publishing, so Home Assistant keeps the last good value instead of seeing zeros.
   This is intentional — it keeps the daemon alive across transient gateway/network failures.
