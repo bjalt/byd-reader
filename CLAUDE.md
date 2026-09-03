@@ -52,14 +52,19 @@ discovers it). `composer.json` maps `App\Tests\` to `tests/`. There is no linter
 `composer test` script — use `./run-tests.sh`, which routes through `symfony php` so PHPUnit does not run under
 whatever `php` is first in `PATH` and fail Composer's `>=8.4` platform check.
 
-**A green suite is not evidence the daemon works.** Six tests across the three classes, and five of them assert
+**A green suite is not evidence the daemon works.** Twelve tests across the three classes, but five still assert
 only that a constructor runs (`assertInstanceOf`) or that a method name exists (`method_exists`). Nothing mocks a
 socket, and nothing exercises `ReadCommand::execute()` — it would never return.
 
-The sixth carries the weight. `DataProviderTest::testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable`
+Two groups carry the weight. `DataProviderTest::testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable`
 constructs `DataProvider` against `127.0.0.1:1`, which refuses instantly, and asserts the whole swallowed-exception
-contract: `error` true, all twelve metrics zeroed, `power` zero, and no extra keys. That path is what keeps Home
-Assistant on its last good value instead of showing a zeroed battery, so it is worth pinning down.
+contract: `error` true, all thirteen metrics zeroed, `power` zero, `Errors` reading `Normal`, and no extra keys.
+That path is what keeps Home Assistant on its last good value instead of showing a zeroed battery, so it is worth
+pinning down. **Every reading added to `configureRequest()` must also be added to the fallback array**, or this
+test fails — deliberately, because a success payload and an error payload with different shapes is a bug.
+
+`testDescribeErrorsDecodesTheBitmask` covers the fault decoder across six bitmasks. It is the only genuinely
+behavioural test here, and only possible because `describeErrors()` is a pure static function of an int.
 
 This only works because the connection target is a constructor argument. Point it at the default and the test
 becomes a live Modbus read on the battery's network and an error-path test everywhere else — green either way,
@@ -104,14 +109,20 @@ it. This RTU-over-TCP round trip is the non-obvious part — the library's norma
 bypassed, and frame completeness is decided by `Packet::isCompleteLengthRTU()`.
 
 - The register map lives entirely in `configureRequest()`: `ReadRegistersBuilder` entries mapping holding
-  registers `0x0500`–`0x0513` (unit ID 1) to human-readable keys, each with a closure applying the scaling
+  registers `0x0500`–`0x0514` (unit ID 1) to human-readable keys, each with a closure applying the scaling
   factor (`/10`, `/100`, or identity). **Add new readings here** — `doc/byd-modbus-interface.md` documents the
-  registers this does *not* read (notably `0x050D`, the error bitmask), and `doc/register-coverage.md` explains
-  why `Charge Cycles`/`Discharge Cycles` are misread today.
+  registers this still does *not* read, and `doc/register-coverage.md` tracks what is left.
+- `Total Charged Energy`/`Total Discharged Energy` are **`uint32` pairs** (`0x0511`+`0x0512`, `0x0513`+`0x0514`),
+  lifetime kWh counters — not the cycle counts they were called until 09/2026, and not 16-bit. The device puts the
+  low word first, which is this library's default endianness, so they need no `$endian` argument.
+- `Error Bitmask` (`0x050D`) is the raw BMU fault bitfield; `describeErrors()` renders it into the `Errors` string
+  that Home Assistant shows. It is `public static` so it can be tested without a socket.
 - The `'no_address'` URI passed to `newReadHoldingRegisters()` is a placeholder. The builder needs a URI key to
   group addresses, but the socket is dialled separately by `buildConnection()`, so it is never used to connect.
-- `power` is derived (`Current * Battery Voltage`), not read from a register. The sign of `Current` gives
-  charge/discharge direction.
+- `power` is derived (`Current * Output Voltage`), not read from a register. The sign of `Current` gives
+  charge/discharge direction. **Output voltage (`0x0510`), not battery voltage (`0x0505`)** — the pack terminal
+  rather than the internal cell stack, which is what both reference implementations use. The `voltage` sensor
+  still publishes battery voltage; only `power` changed.
 - Any `Exception` is swallowed and the payload replaced with a hardcoded all-zero array plus `error => true`;
   `ReadCommand` then skips publishing, so Home Assistant keeps the last good value instead of seeing zeros.
   This is intentional — it keeps the daemon alive across transient gateway/network failures.
@@ -128,18 +139,24 @@ only the last chunk survives. And `parse()` can return an `ErrorResponse`, on wh
 
 ### `src/Mqtt/MqttHandler.php` — the Home Assistant boundary
 
-Only 4 of the 12 values read are published: power, current, voltage, state of charge. Cell voltages, SoH,
-temperatures and cycle counts are read and printed but never leave the process. Both topic families are
-hardcoded:
+All 14 published sensors are declared in one `SENSORS` table, keyed by the topic slug, with `source` naming the
+`DataProvider` payload key that feeds it. Both topic families derive from that slug:
 
-- `homeassistant/sensor/byd-battery/<sensor>/config` — **retained** discovery JSON, published once at startup.
-  Only the power payload carries full device metadata; the other three repeat `identifiers: byd-battery` so
-  Home Assistant groups them onto one device.
-- `home/energy/byd-battery/<sensor>/state` — plain stringified values, QoS 0, not retained, every interval.
+- `homeassistant/sensor/byd-battery/<slug>/config` — **retained** discovery JSON, published once at startup.
+  Only the `power` payload carries full device metadata; the rest repeat `identifiers: byd-battery` so Home
+  Assistant groups them onto one device.
+- `home/energy/byd-battery/<slug>/state` — plain stringified values, QoS 0, not retained, every interval.
 
-Adding a sensor to Home Assistant takes three coordinated edits: a config payload in `writeAutodiscovery()`, a
-publish in `updateState()`, and a new parameter on the `updateState()` signature plus its caller in
-`ReadCommand::readAndWriteToFile()`.
+**Adding a sensor is now one entry in `SENSORS`.** A `null` unit, device class or state class is omitted from the
+discovery payload rather than sent as null, which is what lets the text-only `errors` sensor share the table.
+
+**The slug and name of an existing sensor are load-bearing.** They form the `unique_id`, so changing one orphans
+the entity in Home Assistant and creates a duplicate next to it. The four original sensors (`power`, `current`,
+`voltage`, `state-of-charge`) still emit byte-identical discovery JSON for exactly this reason.
+
+`updateState()` takes the whole payload array rather than one scalar per sensor, and skips any sensor whose
+`source` key is absent. States are truncated to 255 characters — Home Assistant rejects anything longer, which the
+decoded fault list can exceed when many bits are set at once.
 
 Every publish batch connects and disconnects — no persistent session or keep-alive loop. Fixed client id
 `byd-reader`, MQTT 3.1, no TLS. An empty host logs a warning and skips connecting; the resulting publish

@@ -21,9 +21,10 @@ class DataProviderTest extends TestCase
         'Max cell temp',
         'Min cell temp',
         'BMU TEMP',
+        'Error Bitmask',
         'Output Voltage',
-        'Charge Cycles',
-        'Discharge Cycles',
+        'Total Charged Energy',
+        'Total Discharged Energy',
     ];
 
     public function testConstructorSetsPropertiesCorrectly(): void
@@ -56,10 +57,55 @@ class DataProviderTest extends TestCase
         }
 
         $this->assertSame(0, $data['power'], 'power is derived from two zeroes');
+        $this->assertSame('Normal', $data['Errors'], 'a zeroed bitmask decodes to Normal');
         $this->assertCount(
-            count(self::METRICS) + 2,
+            count(self::METRICS) + 3,
             $data,
-            'fallback payload should carry exactly the metrics plus error and power'
+            'fallback payload should carry exactly the metrics plus error, power and Errors'
         );
+    }
+
+    /**
+     * The error bitmask is the one piece of pure logic in this class, so it is the one piece that can
+     * be tested properly. Bit meanings come from doc/byd-modbus-interface.md.
+     *
+     * @dataProvider errorBitmasks
+     */
+    public function testDescribeErrorsDecodesTheBitmask(int $bitmask, string $expected): void
+    {
+        $this->assertSame($expected, DataProvider::describeErrors($bitmask));
+    }
+
+    /**
+     * @return iterable<string, array{int, string}>
+     */
+    public static function errorBitmasks(): iterable
+    {
+        yield 'no faults' => [0b0, 'Normal'];
+        yield 'lowest bit' => [0b1, 'High temperature charging (cells)'];
+        yield 'highest bit' => [1 << 15, 'Low temperature discharging (cells)'];
+        yield 'short circuit only' => [1 << 5, 'Short circuit'];
+        yield 'two faults keep register order' => [
+            (1 << 5) | (1 << 2),
+            'Discharging overcurrent (cells); Short circuit',
+        ];
+        yield 'every bit set' => [0xFFFF, implode('; ', [
+            'High temperature charging (cells)',
+            'Low temperature charging (cells)',
+            'Discharging overcurrent (cells)',
+            'Charging overcurrent (cells)',
+            'Main circuit failure',
+            'Short circuit',
+            'Cell imbalance',
+            'Current sensor error',
+            'Battery overvoltage',
+            'Battery undervoltage',
+            'Cell overvoltage',
+            'Cell undervoltage',
+            'Voltage sensor failure',
+            'Temperature sensor failure',
+            'High temperature discharging (cells)',
+            'Low temperature discharging (cells)',
+        ])];
     }
 }

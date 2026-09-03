@@ -133,13 +133,13 @@ The live telemetry block. 25 registers are readable (`0x0500`–`0x0518`); 21 (`
 | `0x0506` | Max cell temperature | int16 | 1 | °C |
 | `0x0507` | Min cell temperature | int16 | 1 | °C |
 | `0x0508` | BMU temperature | int16 | 1 | °C |
-| `0x0509` | *unknown* | — | — | observed `0` |
-| `0x050A` | BMU firmware version | 2×uint8 | high `.` low | e.g. `0x0318` → V3.24 |
-| `0x050B` | *unknown* | — | — | observed `0` |
-| `0x050C` | *unknown* | — | — | observed `0` |
-| `0x050D` | **Error bitmask** | uint16 | bitfield | see below |
-| `0x050E` | Parameter table version | 2×uint8 | high `.` low | |
-| `0x050F` | *unknown* | — | — | |
+| `0x0509` | *unknown* | — | — | observed `0x0000` |
+| `0x050A` | BMU firmware version | 2×uint8 | high `.` low | observed `0x031A` → V3.26 |
+| `0x050B` | *unknown* | — | — | observed `0x0000` |
+| `0x050C` | *unknown* | — | — | observed `0x0000` |
+| `0x050D` | **Error bitmask** | uint16 | bitfield | see below; observed `0x0000` (no faults) |
+| `0x050E` | Parameter table version | 2×uint8 | high `.` low | observed `0x0902` → v9.2 |
+| `0x050F` | *unknown* | — | — | observed `0x0302`; version-shaped, but unconfirmed |
 | `0x0510` | Output voltage | uint16 | ×0.01 | V |
 | `0x0511`+`0x0512` | **Total charged energy** | uint32, low word first | ×0.1 | kWh |
 | `0x0513`+`0x0514` | **Total discharged energy** | uint32, low word first | ×0.1 | kWh |
@@ -154,8 +154,46 @@ Derived values used by the reference implementations:
 > ⚠️ **`0x0511`/`0x0513` are 32-bit energy counters, not cycle counts.** Reading only the low word yields a value
 > that wraps every 6553.5 kWh. Sarnau's script labels them "Charge Cycles"/"Discharge Cycles" and prints the low
 > word unscaled; this appears to be a mislabelling in that source, and it has propagated into downstream projects.
-> Two independent implementations read them as 32-bit totals in 0.1 kWh — see
-> [Provenance](#provenance-and-confidence).
+> Two independent implementations read them as 32-bit totals in 0.1 kWh, and a first-hand read confirms it — see
+> [Reference unit](#reference-unit) and [Provenance](#provenance-and-confidence).
+
+### Reference unit
+
+Values below were read first-hand on 2026-09-03 from the battery this project targets: an **HVS running BMU
+firmware V3.26**, idle at 64 % SoC. They are one sample from one unit, not a specification — but they are the only
+first-hand figures in this document, and they corroborate the third-party decodes.
+
+A single FC3 request for `0x0500`, quantity 21, returned a 42-byte payload — so the whole decoded span is readable
+in one round trip, without the address splitter chunking it.
+
+```
+01 03 2a 0040 0147 0147 0060 0007 7AE4 001B 001A 001A 0000 031A 0000
+         0000 0000 0902 0302 7AB2 62B5 0000 58D4 0000 <crc>
+```
+
+| Register | Raw | Decoded |
+| --- | --- | --- |
+| `0x0500` | `0x0040` | 64 % state of charge |
+| `0x0501` / `0x0502` | `0x0147` / `0x0147` | 3.27 V / 3.27 V — cells balanced |
+| `0x0503` | `0x0060` | 96 % state of health |
+| `0x0504` | `0x0007` | 0.7 A |
+| `0x0505` | `0x7AE4` | 314.6 V battery |
+| `0x0506`–`0x0508` | `0x001B` `0x001A` `0x001A` | 27 / 26 / 26 °C |
+| `0x050A` | `0x031A` | BMU firmware V3.26 |
+| `0x050D` | `0x0000` | no faults |
+| `0x050E` | `0x0902` | parameter table v9.2 |
+| `0x0510` | `0x7AB2` | 314.1 V output |
+| `0x0511`+`0x0512` | `0x62B5` + `0x0000` | 25269 → **2526.9 kWh** charged |
+| `0x0513`+`0x0514` | `0x58D4` + `0x0000` | 22740 → **2274.0 kWh** discharged |
+
+**The energy totals decode as energy, confirmed.** Discharged ÷ charged = 2274.0 / 2526.9 = **exactly 90.0 %**, a
+textbook round-trip efficiency for a home battery. Cycle counts would not produce that ratio, and reversing the
+word order gives 165,602,918 kWh. This is the strongest available evidence that sarnau's "Cycles" label is wrong.
+
+Note the high words are still `0x0000`: this unit has not yet passed 6553.5 kWh, so a 16-bit read of `0x0511`
+alone still happens to return the correct value here. The wrap is a future failure, not a present one.
+
+`0x0515`–`0x0518` were **not** read — the request stopped at `0x0514`, so this sample says nothing about them.
 
 ### `0x050D` — BMU error bitmask
 
@@ -363,9 +401,10 @@ independent corroboration rather than a shared upstream assumption.
 | Claim | Corroboration | Confidence |
 | --- | --- | --- |
 | Transport, unit id, address ranges | sarnau, `byd_battery_box` | high |
-| `0x0500`–`0x0508`, `0x0510` scaling | sarnau, `byd_battery_box` | high |
-| `0x0511`/`0x0513` are 32-bit energy totals in 0.1 kWh, **not cycle counts** | `byd_battery_box` (Modbus) **and** `python-bydhvs` (proprietary protocol), both deriving efficiency from the ratio | high — sarnau's "Cycles" label is the outlier |
-| `0x050D` error bit meanings | `byd_battery_box` only | medium |
+| `0x0500`–`0x0508`, `0x0510` scaling | sarnau, `byd_battery_box`, **plus a first-hand read** | high — values are physically plausible on a real unit |
+| `0x0511`/`0x0513` are 32-bit energy totals in 0.1 kWh, **not cycle counts** | `byd_battery_box` (Modbus) **and** `python-bydhvs` (proprietary protocol), **plus a first-hand read** yielding exactly 90.0 % round-trip efficiency | high — sarnau's "Cycles" label is the outlier |
+| `0x050D` error bit meanings | `byd_battery_box` only; a first-hand read confirms the register exists and reads `0` on a healthy pack, but **no fault has been observed**, so the bit-to-name mapping is still untested | medium |
+| `0x050E` is a version pair, `0x0509`/`0x050B`/`0x050C` read zero | sarnau, `byd_battery_box`, first-hand read | medium-high |
 | `0x0500` block hardware/config decode | sarnau, `byd_battery_box` (differ on inverter id width) | medium-high |
 | `0x0550` handshake and field offsets | sarnau, `byd_battery_box` (differ on chunk count) | medium-high |
 | Per-cell stride on **HVS** (32-cell) modules | neither source is self-consistent | **low — verify before use** |
