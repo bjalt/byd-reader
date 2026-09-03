@@ -10,6 +10,10 @@ raw TCP socket) and republishes selected values to an MQTT broker using Home Ass
 There is no HTTP surface and no database. `public/index.php`, `config/routes*.yaml`, `session: true` in
 `framework.yaml` and the empty `src/Controller/` are unused Symfony Flex skeleton leftovers.
 
+The battery's Modbus interface has no vendor documentation. `doc/byd-modbus-interface.md` is a reverse-engineered
+reference for it (register map, bitmask tables, handshake protocols, with a confidence rating per claim);
+`doc/register-coverage.md` compares that against what this daemon actually reads.
+
 ## Commands
 
 ```bash
@@ -101,7 +105,9 @@ bypassed, and frame completeness is decided by `Packet::isCompleteLengthRTU()`.
 
 - The register map lives entirely in `configureRequest()`: `ReadRegistersBuilder` entries mapping holding
   registers `0x0500`–`0x0513` (unit ID 1) to human-readable keys, each with a closure applying the scaling
-  factor (`/10`, `/100`, or identity). **Add new readings here.**
+  factor (`/10`, `/100`, or identity). **Add new readings here** — `doc/byd-modbus-interface.md` documents the
+  registers this does *not* read (notably `0x050D`, the error bitmask), and `doc/register-coverage.md` explains
+  why `Charge Cycles`/`Discharge Cycles` are misread today.
 - The `'no_address'` URI passed to `newReadHoldingRegisters()` is a placeholder. The builder needs a URI key to
   group addresses, but the socket is dialled separately by `buildConnection()`, so it is never used to connect.
 - `power` is derived (`Current * Battery Voltage`), not read from a register. The sign of `Current` gives
