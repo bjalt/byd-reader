@@ -1,0 +1,56 @@
+name: Tests
+
+# Pushes to main and every PR — so a topic branch is gated once, by its PR, and a
+# v* release tag does not drag the suite along behind the publish job. The suite is
+# fast and needs no services: the one network-touching test dials 127.0.0.1:1 and
+# expects the refusal.
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  phpunit:
+    # Same runner family as the release build, and the host the daemon runs on.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      # 8.4 to match .php-version and the php:8.4-cli runtime image; composer.json
+      # declares >=8.4, so an older interpreter fails the platform check outright.
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: ctype, iconv
+          coverage: none
+          tools: composer:v2
+
+      - name: Locate the composer cache
+        id: composer-cache
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/cache@v6
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-${{ runner.os }}-${{ runner.arch }}-
+
+      # Scripts stay enabled on purpose: post-install-cmd runs cache:clear, which
+      # compiles the DI container and so fails here if services.yaml is broken.
+      - name: Install dependencies
+        run: composer install --no-interaction --no-progress --prefer-dist
+
+      # No symfony CLI on the runner, so run-tests.sh takes its vendor/bin/phpunit
+      # branch — which is the point of that fallback.
+      - name: Run PHPUnit
+        run: ./run-tests.sh
