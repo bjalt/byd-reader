@@ -1,9 +1,13 @@
 name: Tests
 
-# Every push and every PR. The suite is fast and needs no services — the one
-# network-touching test dials 127.0.0.1:1 and expects the refusal.
+# Pushes to main and every PR — so a topic branch is gated once, by its PR, and a
+# v* release tag does not drag the suite along behind the publish job. The suite is
+# fast and needs no services: the one network-touching test dials 127.0.0.1:1 and
+# expects the refusal.
 on:
   push:
+    branches:
+      - main
   pull_request:
   workflow_dispatch:
 
