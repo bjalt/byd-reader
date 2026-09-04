@@ -1,0 +1,40 @@
+# Scheduled version updates. Security updates run without this file — that is what
+# opened (and failed on) the symfony/* alerts in 09/2026 — but nothing was bumping
+# dependencies on a routine basis, so PR #8 had to move the workflow actions off the
+# deprecated Node 20 runtime by hand.
+version: 2
+
+updates:
+  - package-ecosystem: composer
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/Berlin
+    # `symfony/*` is pinned to 7.4.* in composer.json, so this only ever offers patch
+    # releases within the LTS branch — moving to 8.x stays a deliberate manual change.
+    # One grouped PR rather than eight, since the components release in lockstep.
+    groups:
+      symfony:
+        patterns:
+          - symfony/*
+    commit-message:
+      prefix: chore
+      prefix-development: chore
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      timezone: Europe/Berlin
+    # Both workflows pin major tags, so these are major bumps — exactly the ones that
+    # carry runner-runtime deprecations, which is why they are worth a scheduled PR.
+    groups:
+      actions:
+        patterns:
+          - '*'
+    commit-message:
+      prefix: chore
+    open-pull-requests-limit: 5
