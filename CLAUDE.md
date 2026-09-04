@@ -74,6 +74,11 @@ that is the trap you have walked back into.
 None of this exercises a real read. Verify real changes the way you always did: run the command against a
 reachable gateway and broker.
 
+`.github/workflows/tests.yml` runs the suite on every push and pull request, on `ubuntu-24.04-arm` with PHP 8.4
+from `shivammathur/setup-php`. There is no Symfony CLI on the runner, so `run-tests.sh` takes its
+`vendor/bin/phpunit` branch — that fallback exists for CI. Composer scripts stay enabled there on purpose:
+`post-install-cmd` runs `cache:clear`, so a broken `services.yaml` fails the job before PHPUnit starts.
+
 Two config details worth knowing. `phpunit.dist.xml` sets `failOnNotice` and `failOnWarning` with
 `restrictNotices`/`restrictWarnings` over `src/`, so a notice from application code fails the run rather than
 scrolling past. And `.env.test` sets `SYMFONY_DEPRECATIONS_HELPER`, which is inert — that variable is read by
