@@ -47,7 +47,7 @@ config. This project configures everything in YAML, so the file is pure build ou
 
 ## Tests
 
-PHPUnit 10.5, configured by `phpunit.dist.xml` (Symfony's Flex recipe, hence the unusual filename — PHPUnit still
+PHPUnit 13.4, configured by `phpunit.dist.xml` (Symfony's Flex recipe, hence the unusual filename — PHPUnit still
 discovers it). `composer.json` maps `App\Tests\` to `tests/`. There is no linter and no static analysis, and no
 `composer test` script — use `./run-tests.sh`, which routes through `symfony php` so PHPUnit does not run under
 whatever `php` is first in `PATH` and fail Composer's `>=8.4` platform check.

@@ -68,9 +68,8 @@ class DataProviderTest extends TestCase
     /**
      * The error bitmask is the one piece of pure logic in this class, so it is the one piece that can
      * be tested properly. Bit meanings come from doc/byd-modbus-interface.md.
-     *
-     * @dataProvider errorBitmasks
      */
+    #[\PHPUnit\Framework\Attributes\DataProvider('errorBitmasks')]
     public function testDescribeErrorsDecodesTheBitmask(int $bitmask, string $expected): void
     {
         $this->assertSame($expected, DataProvider::describeErrors($bitmask));
