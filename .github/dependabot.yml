@@ -11,9 +11,13 @@ updates:
       interval: weekly
       day: monday
       timezone: Europe/Berlin
-    # `symfony/*` is pinned to 7.4.* in composer.json, so this only ever offers patch
-    # releases within the LTS branch — moving to 8.x stays a deliberate manual change.
+    # `symfony/*` is pinned to the 7.4 LTS, but Dependabot ignores that pin and widens the
+    # composer.json constraints (PR #15 tried to lift dotenv/runtime/yaml to 8.1.*). The
+    # ignore rule keeps it on patch releases — moving to 8.x stays a deliberate manual change.
     # One grouped PR rather than eight, since the components release in lockstep.
+    ignore:
+      - dependency-name: "symfony/*"
+        update-types: ["version-update:semver-major"]
     groups:
       symfony:
         patterns:
