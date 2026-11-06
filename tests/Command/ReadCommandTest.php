@@ -5,11 +5,13 @@ namespace App\Tests\Command;
 use App\Command\ReadCommand;
 use App\Byd\DataProvider;
 use App\Mqtt\MqttHandler;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class ReadCommandTest extends TestCase
 {
-    public function testConstructorSetsPropertiesCorrectly(): void
+    #[Test]
+    public function constructorSetsPropertiesCorrectly(): void
     {
         // Create stubs for dependencies
         $dataProvider = $this->createStub(DataProvider::class);
@@ -22,7 +24,8 @@ class ReadCommandTest extends TestCase
         $this->assertInstanceOf(ReadCommand::class, $command);
     }
 
-    public function testConstructorWithInvalidInterval(): void
+    #[Test]
+    public function constructorWithInvalidInterval(): void
     {
         // Create stubs for dependencies
         $dataProvider = $this->createStub(DataProvider::class);

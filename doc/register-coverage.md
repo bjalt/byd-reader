@@ -94,7 +94,7 @@ there would be new information for every project listed in the references, not j
   `0x0000` block.
 - **The all-zero fallback array is hand-maintained.** `getData()`'s `catch` block lists every metric key literally.
   A new reading must be added there too, or the error path returns a payload with a different shape than the
-  success path — which `DataProviderTest::testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable` asserts against
+  success path — which `DataProviderTest::getDataFallsBackToZeroesWhenTheGatewayIsUnreachable` asserts against
   exactly, and will fail on.
 - **CSV column count is not stable across versions.** `ReadCommand` splats the whole payload into `data.csv`, which
   has no header row. Every reading added shifts the columns of subsequent rows relative to older ones.

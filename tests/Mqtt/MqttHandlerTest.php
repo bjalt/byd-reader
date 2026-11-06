@@ -3,11 +3,13 @@
 namespace App\Tests\Mqtt;
 
 use App\Mqtt\MqttHandler;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 class MqttHandlerTest extends TestCase
 {
-    public function testConstructorSetsPropertiesCorrectly(): void
+    #[Test]
+    public function constructorSetsPropertiesCorrectly(): void
     {
         $mqttHandler = new MqttHandler('localhost', 1883, 'user', 'pass');
         
@@ -15,7 +17,8 @@ class MqttHandlerTest extends TestCase
         $this->assertInstanceOf(MqttHandler::class, $mqttHandler);
     }
 
-    public function testMethodsExist(): void
+    #[Test]
+    public function methodsExist(): void
     {
         $mqttHandler = new MqttHandler('localhost', 1883, 'user', 'pass');
         
