@@ -3,6 +3,7 @@
 namespace App\Tests\Byd;
 
 use App\Byd\DataProvider;
+use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 use Psr\Log\LoggerInterface;
 
@@ -27,7 +28,8 @@ class DataProviderTest extends TestCase
         'Total Discharged Energy',
     ];
 
-    public function testConstructorSetsPropertiesCorrectly(): void
+    #[Test]
+    public function constructorSetsPropertiesCorrectly(): void
     {
         $this->assertInstanceOf(DataProvider::class, new DataProvider());
     }
@@ -39,7 +41,8 @@ class DataProviderTest extends TestCase
      * The daemon depends on this fallback: ReadCommand skips publishing when error is true, which is
      * what keeps Home Assistant on the last good value instead of showing a zeroed battery.
      */
-    public function testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable(): void
+    #[Test]
+    public function getDataFallsBackToZeroesWhenTheGatewayIsUnreachable(): void
     {
         $logger = $this->createMock(LoggerInterface::class);
         $logger->expects($this->once())->method('error');
@@ -69,8 +72,9 @@ class DataProviderTest extends TestCase
      * The error bitmask is the one piece of pure logic in this class, so it is the one piece that can
      * be tested properly. Bit meanings come from doc/byd-modbus-interface.md.
      */
+    #[Test]
     #[\PHPUnit\Framework\Attributes\DataProvider('errorBitmasks')]
-    public function testDescribeErrorsDecodesTheBitmask(int $bitmask, string $expected): void
+    public function describeErrorsDecodesTheBitmask(int $bitmask, string $expected): void
     {
         $this->assertSame($expected, DataProvider::describeErrors($bitmask));
     }

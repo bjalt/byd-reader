@@ -56,14 +56,14 @@ whatever `php` is first in `PATH` and fail Composer's `>=8.4` platform check.
 only that a constructor runs (`assertInstanceOf`) or that a method name exists (`method_exists`). Nothing mocks a
 socket, and nothing exercises `ReadCommand::execute()` — it would never return.
 
-Two groups carry the weight. `DataProviderTest::testGetDataFallsBackToZeroesWhenTheGatewayIsUnreachable`
+Two groups carry the weight. `DataProviderTest::getDataFallsBackToZeroesWhenTheGatewayIsUnreachable`
 constructs `DataProvider` against `127.0.0.1:1`, which refuses instantly, and asserts the whole swallowed-exception
 contract: `error` true, all thirteen metrics zeroed, `power` zero, `Errors` reading `Normal`, and no extra keys.
 That path is what keeps Home Assistant on its last good value instead of showing a zeroed battery, so it is worth
 pinning down. **Every reading added to `configureRequest()` must also be added to the fallback array**, or this
 test fails — deliberately, because a success payload and an error payload with different shapes is a bug.
 
-`testDescribeErrorsDecodesTheBitmask` covers the fault decoder across six bitmasks. It is the only genuinely
+`describeErrorsDecodesTheBitmask` covers the fault decoder across six bitmasks. It is the only genuinely
 behavioural test here, and only possible because `describeErrors()` is a pure static function of an int.
 
 This only works because the connection target is a constructor argument. Point it at the default and the test
